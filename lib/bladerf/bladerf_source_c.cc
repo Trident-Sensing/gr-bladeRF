@@ -65,46 +65,57 @@ bladerf_source_c_sptr make_bladerf_source_c(const std::string &args)
 /*
  * The private constructor
  */
-bladerf_source_c::bladerf_source_c(const std::string &args) :
-  common_block( "bladerf_source_c",
-                  gr::io_signature::make(0, 0, 0),
-                  args_to_io_signature(args)),
-  _16icbuf(NULL),
-  _32fcbuf(NULL),
-  _running(false),
-  _agcmode(BLADERF_GAIN_DEFAULT)
+bladerf_source_c::bladerf_source_c(const std::string &args) : common_block("bladerf_source_c",
+                                                                           gr::io_signature::make(0, 0, 0),
+                                                                           args_to_io_signature(args)),
+                                                              _16icbuf(NULL),
+                                                              _32fcbuf(NULL),
+                                                              _running(false),
+                                                              _agcmode(BLADERF_GAIN_DEFAULT)
 {
   dict_t dict = params_to_dict(args);
-  
+
   /* Parse actual hardware channel count from args */
   _hw_channels = 1;
-  if (dict.count("numchan")) {
+  if (dict.count("numchan"))
+  {
     _hw_channels = boost::lexical_cast<size_t>(dict["numchan"]);
-    if (_hw_channels > 2) _hw_channels = 2;
-    if (_hw_channels < 1) _hw_channels = 1;
+    if (_hw_channels > 2)
+      _hw_channels = 2;
+    if (_hw_channels < 1)
+      _hw_channels = 1;
   }
-  
+
   /* Parse split counts from args */
-  if (dict.count("split_count0")) {
+  if (dict.count("split_count0"))
+  {
     _split_count[0] = boost::lexical_cast<unsigned int>(dict["split_count0"]);
-    if (_split_count[0] < 1) _split_count[0] = 1;
-  } else {
+    if (_split_count[0] < 1)
+      _split_count[0] = 1;
+  }
+  else
+  {
     _split_count[0] = 1;
   }
-  if (dict.count("split_count1")) {
+  if (dict.count("split_count1"))
+  {
     _split_count[1] = boost::lexical_cast<unsigned int>(dict["split_count1"]);
-    if (_split_count[1] < 1) _split_count[1] = 1;
-  } else {
+    if (_split_count[1] < 1)
+      _split_count[1] = 1;
+  }
+  else
+  {
     _split_count[1] = 1;
   }
-  
+
   /* Initialize switch timing state */
-  for (size_t i = 0; i < 2; ++i) {
+  for (size_t i = 0; i < 2; ++i)
+  {
     _samples_per_switch[i] = 1;
     _current_split[i] = 0;
     _samples_in_current_split[i] = 0;
   }
-  
+
   /* Perform src/sink agnostic initializations */
   init(dict, BLADERF_RX);
 
@@ -121,11 +132,14 @@ bladerf_source_c::bladerf_source_c(const std::string &args) :
   {
     struct bladerf_version fpga_version;
 
-    if (bladerf_fpga_version(_dev.get(), &fpga_version) != 0) {
+    if (bladerf_fpga_version(_dev.get(), &fpga_version) != 0)
+    {
       BLADERF_WARNING("Failed to get FPGA version");
-    } else if (fpga_version.major <= 0 &&
-               fpga_version.minor <= 0 &&
-               fpga_version.patch < 1) {
+    }
+    else if (fpga_version.major <= 0 &&
+             fpga_version.minor <= 0 &&
+             fpga_version.patch < 1)
+    {
       BLADERF_WARNING("Warning: FPGA version v0.0.1 or later is required. "
                       "Using an earlier FPGA version will result in "
                       "misinterpeted samples.");
@@ -133,22 +147,25 @@ bladerf_source_c::bladerf_source_c(const std::string &args) :
   }
 
   /* Initialize channel <-> antenna map */
-  for (std::string ant : get_antennas()) {
+  for (std::string ant : get_antennas())
+  {
     _chanmap[str2channel(ant)] = -1;
   }
 
   /* Bounds-checking hardware channels depending on our underlying hardware */
-  if (_hw_channels > get_max_channels()) {
+  if (_hw_channels > get_max_channels())
+  {
     BLADERF_WARNING("Warning: number of hardware channels specified on command line ("
                     << _hw_channels << ") is greater than the maximum "
-                    "number supported by this device (" << get_max_channels()
+                                       "number supported by this device ("
+                    << get_max_channels()
                     << "). Resetting to " << get_max_channels() << ".");
     _hw_channels = get_max_channels();
   }
 
   /* Set up constraints */
   int const alignment_multiple = volk_get_alignment() / sizeof(gr_complex);
-  set_alignment(std::max(1,alignment_multiple));
+  set_alignment(std::max(1, alignment_multiple));
   set_max_noutput_items(_samples_per_buffer);
   // Output multiple should be based on hardware channels for interleaving
   set_output_multiple(_hw_channels);
@@ -157,7 +174,8 @@ bladerf_source_c::bladerf_source_c(const std::string &args) :
   _layout = (_hw_channels > 1) ? BLADERF_RX_X2 : BLADERF_RX_X1;
 
   /* Initial wiring of antennas to hardware channels */
-  for (size_t ch = 0; ch < _hw_channels; ++ch) {
+  for (size_t ch = 0; ch < _hw_channels; ++ch)
+  {
     set_channel_enable(BLADERF_CHANNEL_RX(ch), true);
     _chanmap[BLADERF_CHANNEL_RX(ch)] = ch;
   }
@@ -167,8 +185,10 @@ bladerf_source_c::bladerf_source_c(const std::string &args) :
 
 bool bladerf_source_c::is_antenna_valid(const std::string &antenna)
 {
-  for (std::string ant : get_antennas()) {
-    if (antenna == ant) {
+  for (std::string ant : get_antennas())
+  {
+    if (antenna == ant)
+    {
       return true;
     }
   }
@@ -211,15 +231,19 @@ bool bladerf_source_c::start()
   status = bladerf_sync_config(_dev.get(), _layout, _format, _num_buffers,
                                _samples_per_buffer, _num_transfers,
                                _stream_timeout);
-  if (status != 0) {
+  if (status != 0)
+  {
     BLADERF_THROW_STATUS(status, "bladerf_sync_config failed");
   }
 
-  for (size_t ch = 0; ch < get_max_channels(); ++ch) {
+  for (size_t ch = 0; ch < get_max_channels(); ++ch)
+  {
     bladerf_channel brfch = BLADERF_CHANNEL_RX(ch);
-    if (get_channel_enable(brfch)) {
+    if (get_channel_enable(brfch))
+    {
       status = bladerf_enable_module(_dev.get(), brfch, true);
-      if (status != 0) {
+      if (status != 0)
+      {
         BLADERF_THROW_STATUS(status, "bladerf_enable_module failed");
       }
     }
@@ -228,8 +252,8 @@ bool bladerf_source_c::start()
   /* Allocate memory for conversions in work() */
   size_t alignment = volk_get_alignment();
 
-  _16icbuf = reinterpret_cast<int16_t *>(volk_malloc(2*_samples_per_buffer*sizeof(int16_t), alignment));
-  _32fcbuf = reinterpret_cast<gr_complex *>(volk_malloc(_samples_per_buffer*sizeof(gr_complex), alignment));
+  _16icbuf = reinterpret_cast<int16_t *>(volk_malloc(2 * _samples_per_buffer * sizeof(int16_t), alignment));
+  _32fcbuf = reinterpret_cast<gr_complex *>(volk_malloc(_samples_per_buffer * sizeof(gr_complex), alignment));
 
   _running = true;
   fire_trigger();
@@ -245,18 +269,22 @@ bool bladerf_source_c::stop()
 
   gr::thread::scoped_lock guard(d_mutex);
 
-  if (!_running) {
+  if (!_running)
+  {
     BLADERF_WARNING("source already stopped, nothing to do here");
     return true;
   }
 
   _running = false;
 
-  for (size_t ch = 0; ch < get_max_channels(); ++ch) {
+  for (size_t ch = 0; ch < get_max_channels(); ++ch)
+  {
     bladerf_channel brfch = BLADERF_CHANNEL_RX(ch);
-    if (get_channel_enable(brfch)) {
+    if (get_channel_enable(brfch))
+    {
       status = bladerf_enable_module(_dev.get(), brfch, false);
-      if (status != 0) {
+      if (status != 0)
+      {
         BLADERF_THROW_STATUS(status, "bladerf_enable_module failed");
       }
     }
@@ -272,9 +300,9 @@ bool bladerf_source_c::stop()
 }
 
 int bladerf_source_c::general_work(int noutput_items,
-                          gr_vector_int &ninput_items,
-                          gr_vector_const_void_star &input_items,
-                          gr_vector_void_star &output_items)
+                                   gr_vector_int &ninput_items,
+                                   gr_vector_const_void_star &input_items,
+                                   gr_vector_void_star &output_items)
 {
   int status;
   struct bladerf_metadata meta;
@@ -284,12 +312,14 @@ int bladerf_source_c::general_work(int noutput_items,
   gr::thread::scoped_lock guard(d_mutex);
 
   // if we aren't running, nothing to do here
-  if (!_running) {
+  if (!_running)
+  {
     return 0;
   }
 
   // set up metadata
-  if (BLADERF_FORMAT_SC16_Q11_META == _format) {
+  if (BLADERF_FORMAT_SC16_Q11_META == _format)
+  {
     memset(&meta, 0, sizeof(meta));
     meta.flags = BLADERF_META_FLAG_RX_NOW;
     meta_ptr = &meta;
@@ -298,27 +328,67 @@ int bladerf_source_c::general_work(int noutput_items,
   // grab samples into temp buffer
   status = bladerf_sync_rx(_dev.get(), static_cast<void *>(_16icbuf),
                            noutput_items, meta_ptr, _stream_timeout);
-  if (status != 0) {
-    BLADERF_WARNING(boost::str(boost::format("bladerf_sync_rx error: %s")
-                    % bladerf_strerror(status)));
+  if (status != 0)
+  {
+    BLADERF_WARNING(boost::str(boost::format("bladerf_sync_rx error: %s") % bladerf_strerror(status)));
     ++_failures;
 
-    if (_failures >= MAX_CONSECUTIVE_FAILURES) {
+    if (_failures >= MAX_CONSECUTIVE_FAILURES)
+    {
       BLADERF_WARNING("Consecutive error limit hit. Shutting down.");
       return WORK_DONE;
     }
-  } else {
+  }
+  else
+  {
     _failures = 0;
   }
 
+  // if overrun happens deinterleaving breaks if we lost some number of samples
+  // the switcher advances as if all samples were received to simplify the logic we would have to implement in VHDL
+  // this means if an overrun happens we need to advance the state machine by noutput_items samples to keep in sync
+  // I am not sure if there is any guarentee about where the lost samples would be in the stream so we just skip producing any samples this call
+  if (meta_ptr && (meta.status & BLADERF_META_STATUS_OVERRUN))
+  {
+    BLADERF_WARNING("Overrun detected - advancing state machine without producing samples");
+    for (size_t ch = 0; ch < nstreams; ++ch)
+    {
+      int samples_to_advance = noutput_items; 
+      while (samples_to_advance > 0)
+      {
+        int remaining_in_current = _samples_per_switch[ch] - _samples_in_current_split[ch];
+
+        if (samples_to_advance >= remaining_in_current)
+        {
+          samples_to_advance -= remaining_in_current;
+          _current_split[ch] = (_current_split[ch] + 1) % _split_count[ch];
+          _samples_in_current_split[ch] = 0;
+        }
+        else
+        {
+          _samples_in_current_split[ch] += samples_to_advance;
+          samples_to_advance = 0;
+        }
+      }
+    }
+    for (size_t i = 0; i < output_items.size(); ++i)
+    {
+      produce(i, 0);
+    }
+
+    return WORK_CALLED_PRODUCE;
+  }
   // convert from int16_t to float
   // output_items is gr_complex (2x float), so num_points is 2*noutput_items
-  if (_format == BLADERF_FORMAT_SC8_Q7 || _format == BLADERF_FORMAT_SC8_Q7_META) {
-    volk_8i_s32f_convert_32f(reinterpret_cast<float *>(_32fcbuf), (int8_t*)_16icbuf,
-                              SCALING_FACTOR_SC8_Q7, 2*noutput_items);
-  } else {
+  if (_format == BLADERF_FORMAT_SC8_Q7 || _format == BLADERF_FORMAT_SC8_Q7_META)
+  {
+    volk_8i_s32f_convert_32f(reinterpret_cast<float *>(_32fcbuf), (int8_t *)_16icbuf,
+                             SCALING_FACTOR_SC8_Q7, 2 * noutput_items);
+  }
+  else
+  {
     volk_16i_s32f_convert_32f(reinterpret_cast<float *>(_32fcbuf), _16icbuf,
-                              SCALING_FACTOR_SC16_Q11, 2*noutput_items);
+                              SCALING_FACTOR_SC16_Q11, 2 * noutput_items);
   }
 
   // copy the samples into output_items, handling split counts
@@ -331,47 +401,56 @@ int bladerf_source_c::general_work(int noutput_items,
   // Calculate output port offsets for each hw channel
   size_t output_offset[2] = {0, 0};
   output_offset[0] = 0;
-  if (_hw_channels > 1) {
+  if (_hw_channels > 1)
+  {
     output_offset[1] = _split_count[0];
   }
 
-  if (nstreams > 1) {
+  if (nstreams > 1)
+  {
     // we need to deinterleave the multiplex and route to split outputs
-    for (size_t i = 0; i < (noutput_items/nstreams); ++i) {
-      for (size_t ch = 0; ch < nstreams; ++ch) {
+    for (size_t i = 0; i < (noutput_items / nstreams); ++i)
+    {
+      for (size_t ch = 0; ch < nstreams; ++ch)
+      {
         // Determine which output port for this hw channel
         size_t out_port = output_offset[ch] + _current_split[ch];
-        
+
         // Write sample to the current split's output
         out[out_port][samples_written[out_port]++] = *deint_in++;
 
         // Track samples and switch to next split if needed
         _samples_in_current_split[ch]++;
-        if (_samples_in_current_split[ch] >= _samples_per_switch[ch]) {
+        if (_samples_in_current_split[ch] >= _samples_per_switch[ch])
+        {
           _samples_in_current_split[ch] = 0;
           _current_split[ch] = (_current_split[ch] + 1) % _split_count[ch];
         }
       }
     }
-  } else {
+  }
+  else
+  {
     // Single hardware channel, route to splits
-    for (int i = 0; i < noutput_items; ++i) {
+    for (int i = 0; i < noutput_items; ++i)
+    {
       size_t out_port = _current_split[0];
       out[out_port][samples_written[out_port]++] = deint_in[i];
 
       _samples_in_current_split[0]++;
-      if (_samples_in_current_split[0] >= _samples_per_switch[0]) {
+      if (_samples_in_current_split[0] >= _samples_per_switch[0])
+      {
         _samples_in_current_split[0] = 0;
         _current_split[0] = (_current_split[0] + 1) % _split_count[0];
       }
     }
   }
 
-
-  for (size_t i = 0; i < output_items.size(); ++i) {
+  for (size_t i = 0; i < output_items.size(); ++i)
+  {
     produce(i, samples_written[i]);
   }
-  
+
   return WORK_CALLED_PRODUCE;
 }
 
@@ -477,13 +556,15 @@ std::string bladerf_source_c::set_antenna(const std::string &antenna,
 {
   bool _was_running = _running;
 
-  if (_was_running) {
+  if (_was_running)
+  {
     stop();
   }
 
   bladerf_common::set_antenna(BLADERF_RX, chan, antenna);
 
-  if (_was_running) {
+  if (_was_running)
+  {
     start();
   }
 
@@ -497,14 +578,19 @@ std::string bladerf_source_c::get_antenna(size_t chan)
 
 void bladerf_source_c::set_dc_offset_mode(int mode, size_t chan)
 {
-  if (osmosdr::source::DCOffsetOff == mode) {
+  if (osmosdr::source::DCOffsetOff == mode)
+  {
     //_src->set_auto_dc_offset( false, chan );
     /* reset to default for off-state */
     set_dc_offset(std::complex<double>(0.0, 0.0), chan);
-  } else if (osmosdr::source::DCOffsetManual == mode) {
+  }
+  else if (osmosdr::source::DCOffsetManual == mode)
+  {
     /* disable auto mode, but keep correcting with last known values */
     //_src->set_auto_dc_offset( false, chan );
-  } else if (osmosdr::source::DCOffsetAutomatic == mode) {
+  }
+  else if (osmosdr::source::DCOffsetAutomatic == mode)
+  {
     //_src->set_auto_dc_offset( true, chan );
     BLADERF_WARNING("Automatic DC correction mode is not implemented.");
   }
@@ -517,21 +603,27 @@ void bladerf_source_c::set_dc_offset(const std::complex<double> &offset,
 
   status = bladerf_common::set_dc_offset(offset, chan2channel(BLADERF_RX, chan));
 
-  if (status != 0) {
+  if (status != 0)
+  {
     BLADERF_THROW_STATUS(status, "could not set dc offset");
   }
 }
 
 void bladerf_source_c::set_iq_balance_mode(int mode, size_t chan)
 {
-  if (osmosdr::source::IQBalanceOff == mode) {
+  if (osmosdr::source::IQBalanceOff == mode)
+  {
     //_src->set_auto_iq_balance( false, chan );
     /* reset to default for off-state */
     set_iq_balance(std::complex<double>(0.0, 0.0), chan);
-  } else if (osmosdr::source::IQBalanceManual == mode) {
+  }
+  else if (osmosdr::source::IQBalanceManual == mode)
+  {
     /* disable auto mode, but keep correcting with last known values */
     //_src->set_auto_iq_balance( false, chan );
-  } else if (osmosdr::source::IQBalanceAutomatic == mode) {
+  }
+  else if (osmosdr::source::IQBalanceAutomatic == mode)
+  {
     //_src->set_auto_iq_balance( true, chan );
     BLADERF_WARNING("Automatic IQ correction mode is not implemented.");
   }
@@ -544,7 +636,8 @@ void bladerf_source_c::set_iq_balance(const std::complex<double> &balance,
 
   status = bladerf_common::set_iq_balance(balance, chan2channel(BLADERF_RX, chan));
 
-  if (status != 0) {
+  if (status != 0)
+  {
     BLADERF_THROW_STATUS(status, "could not set iq balance");
   }
 }
@@ -586,17 +679,23 @@ void bladerf_source_c::set_biastee_mode(const std::string &mode)
   int status;
   bool enable;
 
-  if (mode == "on" || mode == "1" || mode == "rx") {
+  if (mode == "on" || mode == "1" || mode == "rx")
+  {
     enable = true;
-  } else {
+  }
+  else
+  {
     enable = false;
   }
 
   status = bladerf_set_bias_tee(_dev.get(), BLADERF_CHANNEL_RX(0), enable);
-  if (BLADERF_ERR_UNSUPPORTED == status) {
+  if (BLADERF_ERR_UNSUPPORTED == status)
+  {
     // unsupported, but not worth crashing out
     BLADERF_WARNING("Bias-tee not supported by device");
-  } else if (status != 0) {
+  }
+  else if (status != 0)
+  {
     BLADERF_THROW_STATUS(status, "Failed to set bias-tee");
   }
 }
@@ -606,35 +705,59 @@ void bladerf_source_c::set_loopback_mode(const std::string &loopback)
   int status;
   bladerf_loopback mode;
 
-  if (loopback == "bb_txlpf_rxvga2") {
+  if (loopback == "bb_txlpf_rxvga2")
+  {
     mode = BLADERF_LB_BB_TXLPF_RXVGA2;
-  } else if (loopback == "bb_txlpf_rxlpf") {
+  }
+  else if (loopback == "bb_txlpf_rxlpf")
+  {
     mode = BLADERF_LB_BB_TXLPF_RXLPF;
-  } else if (loopback == "bb_txvga1_rxvga2") {
+  }
+  else if (loopback == "bb_txvga1_rxvga2")
+  {
     mode = BLADERF_LB_BB_TXVGA1_RXVGA2;
-  } else if (loopback == "bb_txvga1_rxlpf") {
+  }
+  else if (loopback == "bb_txvga1_rxlpf")
+  {
     mode = BLADERF_LB_BB_TXVGA1_RXLPF;
-  } else if (loopback == "rf_lna1") {
+  }
+  else if (loopback == "rf_lna1")
+  {
     mode = BLADERF_LB_RF_LNA1;
-  } else if (loopback == "rf_lna2") {
+  }
+  else if (loopback == "rf_lna2")
+  {
     mode = BLADERF_LB_RF_LNA2;
-  } else if (loopback == "rf_lna3") {
+  }
+  else if (loopback == "rf_lna3")
+  {
     mode = BLADERF_LB_RF_LNA3;
-  } else if (loopback == "firmware") {
+  }
+  else if (loopback == "firmware")
+  {
     mode = BLADERF_LB_FIRMWARE;
-  } else if (loopback == "rfic_bist") {
+  }
+  else if (loopback == "rfic_bist")
+  {
     mode = BLADERF_LB_RFIC_BIST;
-  } else if (loopback == "none") {
+  }
+  else if (loopback == "none")
+  {
     mode = BLADERF_LB_NONE;
-  } else {
+  }
+  else
+  {
     BLADERF_THROW("Unknown loopback mode: " + loopback);
   }
 
   status = bladerf_set_loopback(_dev.get(), mode);
-  if (BLADERF_ERR_UNSUPPORTED == status) {
+  if (BLADERF_ERR_UNSUPPORTED == status)
+  {
     // unsupported, but not worth crashing out
     BLADERF_WARNING("Loopback mode not supported by device: " + loopback);
-  } else if (status != 0) {
+  }
+  else if (status != 0)
+  {
     BLADERF_THROW_STATUS(status, "Failed to set loopback mode");
   }
 }
@@ -644,23 +767,35 @@ void bladerf_source_c::set_rx_mux_mode(const std::string &rxmux)
   int status;
   bladerf_rx_mux mode;
 
-  if (rxmux == "baseband") {
+  if (rxmux == "baseband")
+  {
     mode = BLADERF_RX_MUX_BASEBAND;
-  } else if (rxmux == "12bit") {
+  }
+  else if (rxmux == "12bit")
+  {
     mode = BLADERF_RX_MUX_12BIT_COUNTER;
-  } else if (rxmux == "32bit") {
+  }
+  else if (rxmux == "32bit")
+  {
     mode = BLADERF_RX_MUX_32BIT_COUNTER;
-  } else if (rxmux == "digital") {
+  }
+  else if (rxmux == "digital")
+  {
     mode = BLADERF_RX_MUX_DIGITAL_LOOPBACK;
-  } else {
+  }
+  else
+  {
     BLADERF_THROW("Unknown RX mux mode: " + rxmux);
   }
 
   status = bladerf_set_rx_mux(_dev.get(), mode);
-  if (BLADERF_ERR_UNSUPPORTED == status) {
+  if (BLADERF_ERR_UNSUPPORTED == status)
+  {
     // unsupported, but not worth crashing out
     BLADERF_WARNING("RX mux mode not supported by device: " + rxmux);
-  } else if (status != 0) {
+  }
+  else if (status != 0)
+  {
     BLADERF_THROW_STATUS(status, "Failed to set RX mux mode");
   }
 }
@@ -675,15 +810,18 @@ void bladerf_source_c::set_agc_mode(const std::string &agcmode)
 
   /* Get the list of AGC modes */
   status = bladerf_get_gain_modes(_dev.get(), BLADERF_CHANNEL_RX(0), &modes);
-  if (status < 0) {
+  if (status < 0)
+  {
     BLADERF_THROW_STATUS(status, "failed to get gain modes");
   }
 
   size_t count = status;
 
   /* Compare... */
-  for (size_t i = 0; i < count; ++i) {
-    if (agcmode == std::string(modes[i].name)) {
+  for (size_t i = 0; i < count; ++i)
+  {
+    if (agcmode == std::string(modes[i].name))
+    {
       mode = modes[i].mode;
       ok = true;
       BLADERF_DEBUG("Setting gain mode to " << mode << " (" << agcmode << ")");
@@ -691,15 +829,18 @@ void bladerf_source_c::set_agc_mode(const std::string &agcmode)
     }
   }
 
-  if (!ok) {
+  if (!ok)
+  {
     BLADERF_WARNING("Unknown gain mode \"" << agcmode << "\"");
     return;
   }
 
   _agcmode = mode;
 
-  for (size_t i = 0; i < _hw_channels; ++i) {
-    if (bladerf_common::get_gain_mode(BLADERF_CHANNEL_RX(i))) {
+  for (size_t i = 0; i < _hw_channels; ++i)
+  {
+    if (bladerf_common::get_gain_mode(BLADERF_CHANNEL_RX(i)))
+    {
       /* Refresh this */
       bladerf_common::set_gain_mode(true, BLADERF_CHANNEL_RX(i), _agcmode);
     }
@@ -709,7 +850,8 @@ void bladerf_source_c::set_agc_mode(const std::string &agcmode)
 
 void bladerf_source_c::set_split_count(size_t chan, unsigned int count)
 {
-  if (chan < 2) {
+  if (chan < 2)
+  {
     _split_count[chan] = (count > 0) ? count : 1;
     _current_split[chan] = 0;
     _samples_in_current_split[chan] = 0;
@@ -723,7 +865,8 @@ unsigned int bladerf_source_c::get_split_count(size_t chan)
 
 void bladerf_source_c::set_samples_per_switch(size_t chan, int samples)
 {
-  if (chan < 2) {
+  if (chan < 2)
+  {
     _samples_per_switch[chan] = (samples > 0) ? samples : 1;
   }
 }
