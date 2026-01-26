@@ -219,7 +219,11 @@ outputs:
 % endif
 - domain: stream
   dtype: ${'$'}{type.type}
+% if sourk == 'source':
+  multiplicity: ${'$'}{split_count0 + (split_count1 if nchan > 1 else 0)}
+% else:
   multiplicity: ${'$'}{nchan}
+% endif
 % if sourk == 'sink':
 outputs:
 % endif
@@ -236,6 +240,12 @@ templates:
   make: |      
     bladeRF.${sourk}(
         args="numchan=" + str(${'$'}{nchan})
+% if sourk == 'source':
+             + ",split_count0=" + str(${'$'}{split_count0})
+             + ",split_count1=" + str(${'$'}{split_count1})
+             + ",switch_time0=" + str(${'$'}{switch_time0})
+             + ",switch_time1=" + str(${'$'}{switch_time1})
+% endif
              + ",metadata=" + '${'$'}{metadata}'
              + ",bladerf=" +  str(${'$'}{device_id})
              + ",verbosity=" + '${'$'}{verbosity}'
@@ -274,6 +284,8 @@ templates:
     % for n in range(max_nchan):
     ${'%'} if context.get('nchan')() > ${n}:    
     % if sourk == 'source':
+    self.${'$'}{id}.set_channel_${n+1}_split_count(${'$'}{${'split_count' + str(n)}})
+    self.${'$'}{id}.set_channel_${n+1}_switch_time(${'$'}{${'switch_time' + str(n)}})
     self.${'$'}{id}.set_dc_offset_mode(${'$'}{${'dc_offset_mode' + str(n)}}, ${n})
     self.${'$'}{id}.set_iq_balance_mode(${'$'}{${'iq_balance_mode' + str(n)}}, ${n})
     self.${'$'}{id}.set_gain_mode(${'$'}{${'gain_mode' + str(n)}}, ${n})    
@@ -288,6 +300,8 @@ templates:
     - set_bandwidth(${'$'}{bw}, 0)
     % for n in range(max_nchan):    
     % if sourk == 'source':
+    - set_channel_${n+1}_split_count(${'$'}{${'split_count' + str(n)}})
+    - set_channel_${n+1}_switch_time(${'$'}{${'switch_time' + str(n)}})
     - set_dc_offset_mode(${'$'}{${'dc_offset_mode' + str(n)}}, ${n})
     - set_iq_balance_mode(${'$'}{${'iq_balance_mode' + str(n)}}, ${n})
     - set_gain_mode(${'$'}{${'gain_mode' + str(n)}} == True, ${n})
@@ -426,6 +440,20 @@ PARAMS_TMPL = """
   hide: ${'$'}{'none' if (nchan > ${n}) else 'all'}  
   
 % if sourk == 'source':
+- id: split_count${n}
+  category: 'Channel ${n}'
+  label: 'Split Count'
+  dtype: int
+  default: 1
+  hide: ${'$'}{'none' if (nchan > ${n}) else 'all'}
+
+- id: switch_time${n}
+  category: 'Channel ${n}'
+  label: 'Switch Time (ms)'
+  dtype: real
+  default: 10
+  hide: ${'$'}{'none' if (nchan > ${n} and split_count${n} > 1) else 'all'}
+
 - id: dc_offset_mode${n}
   category: 'Channel ${n}'
   label: 'DC Offset Mode'

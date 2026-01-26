@@ -21,7 +21,7 @@
 #ifndef INCLUDED_BLADERF_SOURCE_C_H
 #define INCLUDED_BLADERF_SOURCE_C_H
 
-#include "common_sync_block.h"
+#include "common_block.h"
 #include "bladerf_common.h"
 #include "osmosdr/ranges.h"
 
@@ -50,7 +50,7 @@ typedef std::shared_ptr<bladerf_source_c> bladerf_source_c_sptr;
 bladerf_source_c_sptr make_bladerf_source_c(const std::string &args = "");
 
 class bladerf_source_c :
-  public common_sync_block
+  public common_block
 {
 private:
   // The friend declaration allows bladerf_make_source_c to
@@ -72,9 +72,10 @@ public:
   bool start();
   bool stop();
 
-  int work(int noutput_items,
-           gr_vector_const_void_star &input_items,
-           gr_vector_void_star &output_items);
+  int general_work(int noutput_items,
+                   gr_vector_int &ninput_items,
+                   gr_vector_const_void_star &input_items,
+                   gr_vector_void_star &output_items);
 
   osmosdr::meta_range_t get_sample_rates(void);
   double set_sample_rate(double rate);
@@ -122,6 +123,12 @@ public:
   void set_rx_mux_mode(const std::string &rxmux);
   void set_agc_mode(const std::string &agcmode);
 
+  // Split count and switch time setters/getters
+  void set_split_count(size_t chan, unsigned int count);
+  unsigned int get_split_count(size_t chan);
+  void set_switch_time(size_t chan, double time_ms);
+  double get_switch_time(size_t chan);
+
 private:
   // Sample-handling buffers
   int16_t *_16icbuf;              /**< raw samples from bladeRF */
@@ -136,6 +143,13 @@ private:
   /* Scaling factor used when converting from int16_t to float */
   const float SCALING_FACTOR_SC8_Q7 = 127.0f;
   const float SCALING_FACTOR_SC16_Q11 = 2048.0f;
+
+  /* Split/switch state for antenna switching */
+  unsigned int _split_count[2];     /**< number of antenna splits per channel */
+  double _switch_time_ms[2];        /**< time between switches in ms */
+  size_t _current_split[2];         /**< current split index per channel */
+  size_t _samples_in_current_split[2]; /**< samples written to current split */
+  size_t _hw_channels;              /**< number of hardware channels (1 or 2) */
 };
 
 #endif // INCLUDED_BLADERF_SOURCE_C_H

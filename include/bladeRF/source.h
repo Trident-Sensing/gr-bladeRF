@@ -295,6 +295,58 @@ namespace gr {
        */
       virtual osmosdr::freq_range_t get_bandwidth_range( size_t chan = 0 ) = 0;
 
+      /*!
+       * Set the split count for channel 1.
+       * \param count the split count value
+       * \return the actual split count
+       */
+      virtual unsigned int set_channel_1_split_count( unsigned int count ) = 0;
+
+      /*!
+       * Get the split count for channel 1.
+       * \return the split count value
+       */
+      virtual unsigned int get_channel_1_split_count( void ) = 0;
+
+      /*!
+       * Set the split count for channel 2.
+       * \param count the split count value
+       * \return the actual split count
+       */
+      virtual unsigned int set_channel_2_split_count( unsigned int count ) = 0;
+
+      /*!
+       * Get the split count for channel 2.
+       * \return the split count value
+       */
+      virtual unsigned int get_channel_2_split_count( void ) = 0;
+
+      /*!
+       * Set the switch time for channel 1 (time between antenna switches).
+       * \param time_ms the switch time in milliseconds
+       * \return the actual switch time
+       */
+      virtual double set_channel_1_switch_time( double time_ms ) = 0;
+
+      /*!
+       * Get the switch time for channel 1.
+       * \return the switch time in milliseconds
+       */
+      virtual double get_channel_1_switch_time( void ) = 0;
+
+      /*!
+       * Set the switch time for channel 2 (time between antenna switches).
+       * \param time_ms the switch time in milliseconds
+       * \return the actual switch time
+       */
+      virtual double set_channel_2_switch_time( double time_ms ) = 0;
+
+      /*!
+       * Get the switch time for channel 2.
+       * \return the switch time in milliseconds
+       */
+      virtual double get_channel_2_switch_time( void ) = 0;
+
    };
 
   } // namespace bladeRF

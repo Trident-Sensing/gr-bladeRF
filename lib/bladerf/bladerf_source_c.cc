@@ -29,6 +29,7 @@
 #endif
 
 #include <iostream>
+#include <vector>
 
 #include <boost/assign.hpp>
 #include <boost/format.hpp>
@@ -65,7 +66,7 @@ bladerf_source_c_sptr make_bladerf_source_c(const std::string &args)
  * The private constructor
  */
 bladerf_source_c::bladerf_source_c(const std::string &args) :
-  common_sync_block( "bladerf_source_c",
+  common_block( "bladerf_source_c",
                   gr::io_signature::make(0, 0, 0),
                   args_to_io_signature(args)),
   _16icbuf(NULL),
@@ -74,6 +75,36 @@ bladerf_source_c::bladerf_source_c(const std::string &args) :
   _agcmode(BLADERF_GAIN_DEFAULT)
 {
   dict_t dict = params_to_dict(args);
+  
+  /* Parse actual hardware channel count from args */
+  _hw_channels = 1;
+  if (dict.count("numchan")) {
+    _hw_channels = boost::lexical_cast<size_t>(dict["numchan"]);
+    if (_hw_channels > 2) _hw_channels = 2;
+    if (_hw_channels < 1) _hw_channels = 1;
+  }
+  
+  /* Parse split counts from args */
+  if (dict.count("split_count0")) {
+    _split_count[0] = boost::lexical_cast<unsigned int>(dict["split_count0"]);
+    if (_split_count[0] < 1) _split_count[0] = 1;
+  } else {
+    _split_count[0] = 1;
+  }
+  if (dict.count("split_count1")) {
+    _split_count[1] = boost::lexical_cast<unsigned int>(dict["split_count1"]);
+    if (_split_count[1] < 1) _split_count[1] = 1;
+  } else {
+    _split_count[1] = 1;
+  }
+  
+  /* Initialize switch timing state */
+  for (size_t i = 0; i < 2; ++i) {
+    _switch_time_ms[i] = 10.0;
+    _current_split[i] = 0;
+    _samples_in_current_split[i] = 0;
+  }
+  
   /* Perform src/sink agnostic initializations */
   init(dict, BLADERF_RX);
 
@@ -106,29 +137,27 @@ bladerf_source_c::bladerf_source_c(const std::string &args) :
     _chanmap[str2channel(ant)] = -1;
   }
 
-  /* Bounds-checking output signature depending on our underlying hardware */
-  if (get_num_channels() > get_max_channels()) {
-    BLADERF_WARNING("Warning: number of channels specified on command line ("
-                    << get_num_channels() << ") is greater than the maximum "
+  /* Bounds-checking hardware channels depending on our underlying hardware */
+  if (_hw_channels > get_max_channels()) {
+    BLADERF_WARNING("Warning: number of hardware channels specified on command line ("
+                    << _hw_channels << ") is greater than the maximum "
                     "number supported by this device (" << get_max_channels()
                     << "). Resetting to " << get_max_channels() << ".");
-
-    set_output_signature(gr::io_signature::make(get_max_channels(),
-                                                get_max_channels(),
-                                                sizeof(gr_complex)));
+    _hw_channels = get_max_channels();
   }
 
   /* Set up constraints */
   int const alignment_multiple = volk_get_alignment() / sizeof(gr_complex);
   set_alignment(std::max(1,alignment_multiple));
   set_max_noutput_items(_samples_per_buffer);
-  set_output_multiple(get_num_channels());
+  // Output multiple should be based on hardware channels for interleaving
+  set_output_multiple(_hw_channels);
 
-  /* Set channel layout */
-  _layout = (get_num_channels() > 1) ? BLADERF_RX_X2 : BLADERF_RX_X1;
+  /* Set channel layout based on hardware channels */
+  _layout = (_hw_channels > 1) ? BLADERF_RX_X2 : BLADERF_RX_X1;
 
-  /* Initial wiring of antennas to channels */
-  for (size_t ch = 0; ch < get_num_channels(); ++ch) {
+  /* Initial wiring of antennas to hardware channels */
+  for (size_t ch = 0; ch < _hw_channels; ++ch) {
     set_channel_enable(BLADERF_CHANNEL_RX(ch), true);
     _chanmap[BLADERF_CHANNEL_RX(ch)] = ch;
   }
@@ -242,7 +271,8 @@ bool bladerf_source_c::stop()
   return true;
 }
 
-int bladerf_source_c::work(int noutput_items,
+int bladerf_source_c::general_work(int noutput_items,
+                          gr_vector_int &ninput_items,
                           gr_vector_const_void_star &input_items,
                           gr_vector_void_star &output_items)
 {
@@ -291,24 +321,66 @@ int bladerf_source_c::work(int noutput_items,
                               SCALING_FACTOR_SC16_Q11, 2*noutput_items);
   }
 
-  // copy the samples into output_items
+  // Calculate samples per switch period for each hardware channel
+  double sample_rate = get_sample_rate();
+  size_t samples_per_switch[2];
+  for (size_t ch = 0; ch < _hw_channels; ++ch) {
+    samples_per_switch[ch] = static_cast<size_t>((sample_rate * _switch_time_ms[ch]) / 1000.0);
+    if (samples_per_switch[ch] == 0) samples_per_switch[ch] = 1;
+  }
+
+  // copy the samples into output_items, handling split counts
   gr_complex **out = reinterpret_cast<gr_complex **>(&output_items[0]);
+  gr_complex const *deint_in = _32fcbuf;
+
+  // Track how many samples written to each output port
+  std::vector<size_t> samples_written(output_items.size(), 0);
+
+  // Calculate output port offsets for each hw channel
+  size_t output_offset[2] = {0, 0};
+  output_offset[0] = 0;
+  if (_hw_channels > 1) {
+    output_offset[1] = _split_count[0];
+  }
 
   if (nstreams > 1) {
-    // we need to deinterleave the multiplex as we copy
-    gr_complex const *deint_in = _32fcbuf;
-
+    // we need to deinterleave the multiplex and route to split outputs
     for (size_t i = 0; i < (noutput_items/nstreams); ++i) {
-      for (size_t n = 0; n < nstreams; ++n) {
-        memcpy(out[n]++, deint_in++, sizeof(gr_complex));
+      for (size_t ch = 0; ch < nstreams; ++ch) {
+        // Determine which output port for this hw channel
+        size_t out_port = output_offset[ch] + _current_split[ch];
+        
+        // Write sample to the current split's output
+        out[out_port][samples_written[out_port]++] = *deint_in++;
+
+        // Track samples and switch to next split if needed
+        _samples_in_current_split[ch]++;
+        if (_samples_in_current_split[ch] >= samples_per_switch[ch]) {
+          _samples_in_current_split[ch] = 0;
+          _current_split[ch] = (_current_split[ch] + 1) % _split_count[ch];
+        }
       }
     }
   } else {
-    // no deinterleaving to do: simply copy everything
-    memcpy(out[0], _32fcbuf, sizeof(gr_complex) * noutput_items);
+    // Single hardware channel, route to splits
+    for (int i = 0; i < noutput_items; ++i) {
+      size_t out_port = _current_split[0];
+      out[out_port][samples_written[out_port]++] = deint_in[i];
+
+      _samples_in_current_split[0]++;
+      if (_samples_in_current_split[0] >= samples_per_switch[0]) {
+        _samples_in_current_split[0] = 0;
+        _current_split[0] = (_current_split[0] + 1) % _split_count[0];
+      }
+    }
   }
 
-  return noutput_items/(get_num_channels());
+
+  for (size_t i = 0; i < output_items.size(); ++i) {
+    produce(i, samples_written[i]);
+  }
+  
+  return WORK_CALLED_PRODUCE;
 }
 
 osmosdr::meta_range_t bladerf_source_c::get_sample_rates()
@@ -634,11 +706,37 @@ void bladerf_source_c::set_agc_mode(const std::string &agcmode)
 
   _agcmode = mode;
 
-  for (size_t i = 0; i < get_num_channels(); ++i) {
+  for (size_t i = 0; i < _hw_channels; ++i) {
     if (bladerf_common::get_gain_mode(BLADERF_CHANNEL_RX(i))) {
       /* Refresh this */
       bladerf_common::set_gain_mode(true, BLADERF_CHANNEL_RX(i), _agcmode);
     }
   }
 #endif
+}
+
+void bladerf_source_c::set_split_count(size_t chan, unsigned int count)
+{
+  if (chan < 2) {
+    _split_count[chan] = (count > 0) ? count : 1;
+    _current_split[chan] = 0;
+    _samples_in_current_split[chan] = 0;
+  }
+}
+
+unsigned int bladerf_source_c::get_split_count(size_t chan)
+{
+  return (chan < 2) ? _split_count[chan] : 1;
+}
+
+void bladerf_source_c::set_switch_time(size_t chan, double time_ms)
+{
+  if (chan < 2) {
+    _switch_time_ms[chan] = (time_ms > 0.0) ? time_ms : 10.0;
+  }
+}
+
+double bladerf_source_c::get_switch_time(size_t chan)
+{
+  return (chan < 2) ? _switch_time_ms[chan] : 10.0;
 }

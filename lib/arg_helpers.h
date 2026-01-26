@@ -124,14 +124,26 @@ inline gr::io_signature::sptr args_to_io_signature( const std::string &args )
 {
   std::cout << "Args: " << args << std::endl;
   size_t dev_nchan = 0;
+  size_t split_count0 = 1;
+  size_t split_count1 = 1;
+  
   std::vector< std::string > arg_list = params_to_vector( args );
   for (std::string arg : arg_list)
   {
-    if ( arg.find( "numchan=" ) == 0 ) // try to parse global nchan value
+    if ( arg.find( "numchan=" ) == 0 )
     {
       pair_t pair = param_to_pair( arg );
       dev_nchan = boost::lexical_cast<size_t>( pair.second );
-      break;
+    }
+    else if ( arg.find( "split_count0=" ) == 0 )
+    {
+      pair_t pair = param_to_pair( arg );
+      split_count0 = boost::lexical_cast<size_t>( pair.second );
+    }
+    else if ( arg.find( "split_count1=" ) == 0 )
+    {
+      pair_t pair = param_to_pair( arg );
+      split_count1 = boost::lexical_cast<size_t>( pair.second );
     }
   }
 
@@ -139,7 +151,13 @@ inline gr::io_signature::sptr args_to_io_signature( const std::string &args )
   if ( !dev_nchan )
     throw std::runtime_error("Wrong device arguments specified. Missing nchan?");
 
-  return gr::io_signature::make(dev_nchan, dev_nchan, sizeof(gr_complex));
+  // Calculate total outputs: each channel is split into split_countN streams
+  size_t total_outputs = split_count0;
+  if (dev_nchan > 1) {
+    total_outputs += split_count1;
+  }
+
+  return gr::io_signature::make(total_outputs, total_outputs, sizeof(gr_complex));
 }
 
 #endif // OSMOSDR_ARG_HELPERS_H

@@ -22,7 +22,11 @@ namespace gr {
     source_impl::source_impl(const std::string & args)
       : gr::hier_block2("source",
               gr::io_signature::make(0,0,0),
-              args_to_io_signature(args))
+              args_to_io_signature(args)),
+        channel_1_split_count_(1),
+        channel_2_split_count_(1),
+        channel_1_switch_time_(10.0),
+        channel_2_switch_time_(10.0)
     {
         message_port_register_hier_in(pmt::mp("pmic_in"));
         message_port_register_hier_out(pmt::mp("pmic_out"));
@@ -33,6 +37,9 @@ namespace gr {
                                      "(check the connection and/or udev rules).");
 
         device_ = make_bladerf_source_c( args ); //todo: get by id from block args
+        
+        // Connect all device outputs to hier_block outputs
+        // bladerf_source_c handles the deinterleaving in its work() function
         for (size_t i = 0; i < device_->get_num_channels(); i++) {
   #ifdef HAVE_IQBALANCE
           gr::iqbalance::optimize_c::sptr iq_opt = gr::iqbalance::optimize_c::make( 0 );
@@ -49,7 +56,6 @@ namespace gr {
   #else
           connect(device_, i, self(), i);          
   #endif
-
         }
         msg_connect(self(), pmt::mp("pmic_in"), device_, pmt::mp("pmic_in"));
         msg_connect(device_, pmt::mp("pmic_out"), self(), pmt::mp("pmic_out"));
@@ -331,6 +337,50 @@ namespace gr {
     {
         return chan < get_num_channels() ?
             device_->get_bandwidth_range( chan ) : osmosdr::freq_range_t{};
+    }
+
+    unsigned int source_impl::set_channel_1_split_count(unsigned int count)
+    {
+        channel_1_split_count_ = count;
+        return channel_1_split_count_;
+    }
+
+    unsigned int source_impl::get_channel_1_split_count()
+    {
+        return channel_1_split_count_;
+    }
+
+    unsigned int source_impl::set_channel_2_split_count(unsigned int count)
+    {
+        channel_2_split_count_ = count;
+        return channel_2_split_count_;
+    }
+
+    unsigned int source_impl::get_channel_2_split_count()
+    {
+        return channel_2_split_count_;
+    }
+
+    double source_impl::set_channel_1_switch_time(double time_ms)
+    {
+        channel_1_switch_time_ = time_ms;
+        return channel_1_switch_time_;
+    }
+
+    double source_impl::get_channel_1_switch_time()
+    {
+        return channel_1_switch_time_;
+    }
+
+    double source_impl::set_channel_2_switch_time(double time_ms)
+    {
+        channel_2_switch_time_ = time_ms;
+        return channel_2_switch_time_;
+    }
+
+    double source_impl::get_channel_2_switch_time()
+    {
+        return channel_2_switch_time_;
     }
   } /* namespace bladeRF */
 } /* namespace gr */

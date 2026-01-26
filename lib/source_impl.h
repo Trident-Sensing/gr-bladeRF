@@ -20,6 +20,10 @@ namespace gr {
      private:
       bladerf_source_c_sptr device_;
       double sample_rate_;
+      unsigned int channel_1_split_count_;
+      unsigned int channel_2_split_count_;
+      double channel_1_switch_time_;  // in milliseconds
+      double channel_2_switch_time_;  // in milliseconds
 
       channel_store<double> center_freq_;
       channel_store<double> freq_corr_;
@@ -108,6 +112,18 @@ namespace gr {
       double get_bandwidth( size_t chan = 0 ) override;
 
       osmosdr::freq_range_t get_bandwidth_range( size_t chan = 0 ) override;
+
+      unsigned int set_channel_1_split_count( unsigned int count ) override;
+      unsigned int get_channel_1_split_count( void ) override;
+
+      unsigned int set_channel_2_split_count( unsigned int count ) override;
+      unsigned int get_channel_2_split_count( void ) override;
+
+      double set_channel_1_switch_time( double time_ms ) override;
+      double get_channel_1_switch_time( void ) override;
+
+      double set_channel_2_switch_time( double time_ms ) override;
+      double get_channel_2_switch_time( void ) override;
 
       // Where all the action really happens
    };
