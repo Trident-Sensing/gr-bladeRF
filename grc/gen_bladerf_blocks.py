@@ -243,8 +243,8 @@ templates:
 % if sourk == 'source':
              + ",split_count0=" + str(${'$'}{split_count0})
              + ",split_count1=" + str(${'$'}{split_count1})
-             + ",switch_time0=" + str(${'$'}{switch_time0})
-             + ",switch_time1=" + str(${'$'}{switch_time1})
+             + ",samples_per_switch0=" + str(${'$'}{samples_per_switch0})
+             + ",samples_per_switch1=" + str(${'$'}{samples_per_switch1})
 % endif
              + ",metadata=" + '${'$'}{metadata}'
              + ",bladerf=" +  str(${'$'}{device_id})
@@ -285,7 +285,7 @@ templates:
     ${'%'} if context.get('nchan')() > ${n}:    
     % if sourk == 'source':
     self.${'$'}{id}.set_channel_${n+1}_split_count(${'$'}{${'split_count' + str(n)}})
-    self.${'$'}{id}.set_channel_${n+1}_switch_time(${'$'}{${'switch_time' + str(n)}})
+    self.${'$'}{id}.set_channel_${n+1}_samples_per_switch(${'$'}{${'samples_per_switch' + str(n)}})
     self.${'$'}{id}.set_dc_offset_mode(${'$'}{${'dc_offset_mode' + str(n)}}, ${n})
     self.${'$'}{id}.set_iq_balance_mode(${'$'}{${'iq_balance_mode' + str(n)}}, ${n})
     self.${'$'}{id}.set_gain_mode(${'$'}{${'gain_mode' + str(n)}}, ${n})    
@@ -301,7 +301,7 @@ templates:
     % for n in range(max_nchan):    
     % if sourk == 'source':
     - set_channel_${n+1}_split_count(${'$'}{${'split_count' + str(n)}})
-    - set_channel_${n+1}_switch_time(${'$'}{${'switch_time' + str(n)}})
+    - set_channel_${n+1}_samples_per_switch(${'$'}{${'samples_per_switch' + str(n)}})
     - set_dc_offset_mode(${'$'}{${'dc_offset_mode' + str(n)}}, ${n})
     - set_iq_balance_mode(${'$'}{${'iq_balance_mode' + str(n)}}, ${n})
     - set_gain_mode(${'$'}{${'gain_mode' + str(n)}} == True, ${n})
@@ -447,9 +447,9 @@ PARAMS_TMPL = """
   default: 1
   hide: ${'$'}{'none' if (nchan > ${n}) else 'all'}
 
-- id: switch_time${n}
+- id: samples_per_switch${n}
   category: 'Channel ${n}'
-  label: 'Switch Time (ms)'
+  label: 'samples to collect before switching antennas'
   dtype: real
   default: 10
   hide: ${'$'}{'none' if (nchan > ${n} and split_count${n} > 1) else 'all'}

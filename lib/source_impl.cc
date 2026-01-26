@@ -25,8 +25,8 @@ namespace gr {
               args_to_io_signature(args)),
         channel_1_split_count_(1),
         channel_2_split_count_(1),
-        channel_1_switch_time_(10.0),
-        channel_2_switch_time_(10.0)
+        channel_1_samples_per_switch_(10),
+        channel_2_samples_per_switch_(10)
     {
         message_port_register_hier_in(pmt::mp("pmic_in"));
         message_port_register_hier_out(pmt::mp("pmic_out"));
@@ -361,26 +361,26 @@ namespace gr {
         return channel_2_split_count_;
     }
 
-    double source_impl::set_channel_1_switch_time(double time_ms)
+    int source_impl::set_channel_1_samples_per_switch(int samples)
     {
-        channel_1_switch_time_ = time_ms;
-        return channel_1_switch_time_;
+        channel_1_samples_per_switch_ = samples;
+        return channel_1_samples_per_switch_;
     }
 
-    double source_impl::get_channel_1_switch_time()
+    int source_impl::get_channel_1_samples_per_switch()
     {
-        return channel_1_switch_time_;
+        return channel_1_samples_per_switch_;
     }
 
-    double source_impl::set_channel_2_switch_time(double time_ms)
+    int source_impl::set_channel_2_samples_per_switch(int samples)
     {
-        channel_2_switch_time_ = time_ms;
-        return channel_2_switch_time_;
+        channel_2_samples_per_switch_ = samples;
+        return channel_2_samples_per_switch_;
     }
 
-    double source_impl::get_channel_2_switch_time()
+    int source_impl::get_channel_2_samples_per_switch()
     {
-        return channel_2_switch_time_;
+        return channel_2_samples_per_switch_;
     }
   } /* namespace bladeRF */
 } /* namespace gr */

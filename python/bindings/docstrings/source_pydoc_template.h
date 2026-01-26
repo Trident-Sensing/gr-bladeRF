@@ -94,14 +94,14 @@ static const char *__doc_gr_bladeRF_source_set_channel_2_split_count =
 static const char *__doc_gr_bladeRF_source_get_channel_2_split_count =
     R"doc()doc";
 
-static const char *__doc_gr_bladeRF_source_set_channel_1_switch_time =
+static const char *__doc_gr_bladeRF_source_set_channel_1_samples_per_switch =
     R"doc()doc";
 
-static const char *__doc_gr_bladeRF_source_get_channel_1_switch_time =
+static const char *__doc_gr_bladeRF_source_get_channel_1_samples_per_switch =
     R"doc()doc";
 
-static const char *__doc_gr_bladeRF_source_set_channel_2_switch_time =
+static const char *__doc_gr_bladeRF_source_set_channel_2_samples_per_switch =
     R"doc()doc";
 
-static const char *__doc_gr_bladeRF_source_get_channel_2_switch_time =
+static const char *__doc_gr_bladeRF_source_get_channel_2_samples_per_switch =
     R"doc()doc";

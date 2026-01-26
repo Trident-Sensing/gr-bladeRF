@@ -126,8 +126,8 @@ public:
   // Split count and switch time setters/getters
   void set_split_count(size_t chan, unsigned int count);
   unsigned int get_split_count(size_t chan);
-  void set_switch_time(size_t chan, double time_ms);
-  double get_switch_time(size_t chan);
+  void set_samples_per_switch(size_t chan, int samples);
+  int get_samples_per_switch(size_t chan);
 
 private:
   // Sample-handling buffers
@@ -146,7 +146,7 @@ private:
 
   /* Split/switch state for antenna switching */
   unsigned int _split_count[2];     /**< number of antenna splits per channel */
-  double _switch_time_ms[2];        /**< time between switches in ms */
+  int _samples_per_switch[2];        /**< samples collected before switching antennas */
   size_t _current_split[2];         /**< current split index per channel */
   size_t _samples_in_current_split[2]; /**< samples written to current split */
   size_t _hw_channels;              /**< number of hardware channels (1 or 2) */

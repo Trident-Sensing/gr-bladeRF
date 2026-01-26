@@ -323,29 +323,29 @@ namespace gr {
 
       /*!
        * Set the switch time for channel 1 (time between antenna switches).
-       * \param time_ms the switch time in milliseconds
-       * \return the actual switch time
+       * \param samples the number of samples between switches
+       * \return the actual number of samples
        */
-      virtual double set_channel_1_switch_time( double time_ms ) = 0;
+      virtual int set_channel_1_samples_per_switch( int samples ) = 0;
 
       /*!
-       * Get the switch time for channel 1.
-       * \return the switch time in milliseconds
+       * Get the samples per switch for channel 1.
+       * \return the number of samples
        */
-      virtual double get_channel_1_switch_time( void ) = 0;
+      virtual int get_channel_1_samples_per_switch( void ) = 0;
 
       /*!
        * Set the switch time for channel 2 (time between antenna switches).
-       * \param time_ms the switch time in milliseconds
-       * \return the actual switch time
+       * \param samples the number of samples between switches
+       * \return the actual number of samples
        */
-      virtual double set_channel_2_switch_time( double time_ms ) = 0;
+      virtual int set_channel_2_samples_per_switch( int samples ) = 0;
 
       /*!
-       * Get the switch time for channel 2.
-       * \return the switch time in milliseconds
+       * Get the samples per switch for channel 2.
+       * \return the number of samples
        */
-      virtual double get_channel_2_switch_time( void ) = 0;
+      virtual int get_channel_2_samples_per_switch( void ) = 0;
 
    };
 

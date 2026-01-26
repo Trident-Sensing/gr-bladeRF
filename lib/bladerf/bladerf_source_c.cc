@@ -100,7 +100,7 @@ bladerf_source_c::bladerf_source_c(const std::string &args) :
   
   /* Initialize switch timing state */
   for (size_t i = 0; i < 2; ++i) {
-    _switch_time_ms[i] = 10.0;
+    _samples_per_switch[i] = 1;
     _current_split[i] = 0;
     _samples_in_current_split[i] = 0;
   }
@@ -321,14 +321,6 @@ int bladerf_source_c::general_work(int noutput_items,
                               SCALING_FACTOR_SC16_Q11, 2*noutput_items);
   }
 
-  // Calculate samples per switch period for each hardware channel
-  double sample_rate = get_sample_rate();
-  size_t samples_per_switch[2];
-  for (size_t ch = 0; ch < _hw_channels; ++ch) {
-    samples_per_switch[ch] = static_cast<size_t>((sample_rate * _switch_time_ms[ch]) / 1000.0);
-    if (samples_per_switch[ch] == 0) samples_per_switch[ch] = 1;
-  }
-
   // copy the samples into output_items, handling split counts
   gr_complex **out = reinterpret_cast<gr_complex **>(&output_items[0]);
   gr_complex const *deint_in = _32fcbuf;
@@ -355,7 +347,7 @@ int bladerf_source_c::general_work(int noutput_items,
 
         // Track samples and switch to next split if needed
         _samples_in_current_split[ch]++;
-        if (_samples_in_current_split[ch] >= samples_per_switch[ch]) {
+        if (_samples_in_current_split[ch] >= _samples_per_switch[ch]) {
           _samples_in_current_split[ch] = 0;
           _current_split[ch] = (_current_split[ch] + 1) % _split_count[ch];
         }
@@ -368,7 +360,7 @@ int bladerf_source_c::general_work(int noutput_items,
       out[out_port][samples_written[out_port]++] = deint_in[i];
 
       _samples_in_current_split[0]++;
-      if (_samples_in_current_split[0] >= samples_per_switch[0]) {
+      if (_samples_in_current_split[0] >= _samples_per_switch[0]) {
         _samples_in_current_split[0] = 0;
         _current_split[0] = (_current_split[0] + 1) % _split_count[0];
       }
@@ -729,14 +721,14 @@ unsigned int bladerf_source_c::get_split_count(size_t chan)
   return (chan < 2) ? _split_count[chan] : 1;
 }
 
-void bladerf_source_c::set_switch_time(size_t chan, double time_ms)
+void bladerf_source_c::set_samples_per_switch(size_t chan, int samples)
 {
   if (chan < 2) {
-    _switch_time_ms[chan] = (time_ms > 0.0) ? time_ms : 10.0;
+    _samples_per_switch[chan] = (samples > 0) ? samples : 1;
   }
 }
 
-double bladerf_source_c::get_switch_time(size_t chan)
+int bladerf_source_c::get_samples_per_switch(size_t chan)
 {
-  return (chan < 2) ? _switch_time_ms[chan] : 10.0;
+  return (chan < 2) ? _samples_per_switch[chan] : 1;
 }

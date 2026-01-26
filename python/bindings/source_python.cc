@@ -16,7 +16,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0) */
 /* BINDTOOL_USE_PYGCCXML(0) */
 /* BINDTOOL_HEADER_FILE(source.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(9a6a21f60a8375412df9e46f43e49c00) */
+/* BINDTOOL_HEADER_FILE_HASH(afb41e18a48f7a085ed45aebe5c68373) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -147,17 +147,21 @@ void bind_source(py::module &m) {
       .def("get_channel_2_split_count", &source::get_channel_2_split_count,
            D(source, get_channel_2_split_count))
 
-      .def("set_channel_1_switch_time", &source::set_channel_1_switch_time,
-           py::arg("time_ms"), D(source, set_channel_1_switch_time))
+      .def("set_channel_1_samples_per_switch",
+           &source::set_channel_1_samples_per_switch, py::arg("samples"),
+           D(source, set_channel_1_samples_per_switch))
 
-      .def("get_channel_1_switch_time", &source::get_channel_1_switch_time,
-           D(source, get_channel_1_switch_time))
+      .def("get_channel_1_samples_per_switch",
+           &source::get_channel_1_samples_per_switch,
+           D(source, get_channel_1_samples_per_switch))
 
-      .def("set_channel_2_switch_time", &source::set_channel_2_switch_time,
-           py::arg("time_ms"), D(source, set_channel_2_switch_time))
+      .def("set_channel_2_samples_per_switch",
+           &source::set_channel_2_samples_per_switch, py::arg("samples"),
+           D(source, set_channel_2_samples_per_switch))
 
-      .def("get_channel_2_switch_time", &source::get_channel_2_switch_time,
-           D(source, get_channel_2_switch_time))
+      .def("get_channel_2_samples_per_switch",
+           &source::get_channel_2_samples_per_switch,
+           D(source, get_channel_2_samples_per_switch))
 
       ;
 }

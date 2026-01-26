@@ -22,8 +22,8 @@ namespace gr {
       double sample_rate_;
       unsigned int channel_1_split_count_;
       unsigned int channel_2_split_count_;
-      double channel_1_switch_time_;  // in milliseconds
-      double channel_2_switch_time_;  // in milliseconds
+      double channel_1_samples_per_switch_;  // in samples
+      double channel_2_samples_per_switch_;  // in samples
 
       channel_store<double> center_freq_;
       channel_store<double> freq_corr_;
@@ -119,11 +119,11 @@ namespace gr {
       unsigned int set_channel_2_split_count( unsigned int count ) override;
       unsigned int get_channel_2_split_count( void ) override;
 
-      double set_channel_1_switch_time( double time_ms ) override;
-      double get_channel_1_switch_time( void ) override;
+      int set_channel_1_samples_per_switch( int samples ) override;
+      int get_channel_1_samples_per_switch( void ) override;
 
-      double set_channel_2_switch_time( double time_ms ) override;
-      double get_channel_2_switch_time( void ) override;
+      int set_channel_2_samples_per_switch( int samples ) override;
+      int get_channel_2_samples_per_switch( void ) override;
 
       // Where all the action really happens
    };
