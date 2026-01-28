@@ -150,6 +150,8 @@ private:
   size_t _current_split[2];         /**< current split index per channel */
   size_t _samples_in_current_split[2]; /**< samples written to current split */
   size_t _hw_channels;              /**< number of hardware channels (1 or 2) */
+
+  std::vector<size_t> _samples_written; /**< samples written per output port */
 };
 
 #endif // INCLUDED_BLADERF_SOURCE_C_H

@@ -179,7 +179,6 @@ bladerf_source_c::bladerf_source_c(const std::string &args) : common_block("blad
     set_channel_enable(BLADERF_CHANNEL_RX(ch), true);
     _chanmap[BLADERF_CHANNEL_RX(ch)] = ch;
   }
-
   BLADERF_DEBUG("initialization complete");
 }
 
@@ -248,6 +247,8 @@ bool bladerf_source_c::start()
       }
     }
   }
+
+  _samples_written.resize(output_signature()->max_streams(), 0);
 
   /* Allocate memory for conversions in work() */
   size_t alignment = volk_get_alignment();
@@ -396,8 +397,7 @@ int bladerf_source_c::general_work(int noutput_items,
   gr_complex const *deint_in = _32fcbuf;
 
   // Track how many samples written to each output port
-  std::vector<size_t> samples_written(output_items.size(), 0);
-
+  std::fill(_samples_written.begin(), _samples_written.end(), 0);
   // Calculate output port offsets for each hw channel
   size_t output_offset[2] = {0, 0};
   output_offset[0] = 0;
@@ -417,7 +417,7 @@ int bladerf_source_c::general_work(int noutput_items,
         size_t out_port = output_offset[ch] + _current_split[ch];
 
         // Write sample to the current split's output
-        out[out_port][samples_written[out_port]++] = *deint_in++;
+        out[out_port][_samples_written[out_port]++] = *deint_in++;
 
         // Track samples and switch to next split if needed
         _samples_in_current_split[ch]++;
@@ -435,7 +435,7 @@ int bladerf_source_c::general_work(int noutput_items,
     for (int i = 0; i < noutput_items; ++i)
     {
       size_t out_port = _current_split[0];
-      out[out_port][samples_written[out_port]++] = deint_in[i];
+      out[out_port][_samples_written[out_port]++] = deint_in[i];
 
       _samples_in_current_split[0]++;
       if (_samples_in_current_split[0] >= _samples_per_switch[0])
@@ -448,7 +448,7 @@ int bladerf_source_c::general_work(int noutput_items,
 
   for (size_t i = 0; i < output_items.size(); ++i)
   {
-    produce(i, samples_written[i]);
+    produce(i, _samples_written[i]);
   }
 
   return WORK_CALLED_PRODUCE;
