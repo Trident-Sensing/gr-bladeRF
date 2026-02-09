@@ -30,6 +30,7 @@ namespace gr {
     {
         message_port_register_hier_in(pmt::mp("pmic_in"));
         message_port_register_hier_out(pmt::mp("pmic_out"));
+        message_port_register_hier_in(pmt::mp("timestamped_pose_in"));
 
         auto dev_list = bladerf_source_c::get_devices();
         if(dev_list.size() == 0)
@@ -59,6 +60,7 @@ namespace gr {
         }
         msg_connect(self(), pmt::mp("pmic_in"), device_, pmt::mp("pmic_in"));
         msg_connect(device_, pmt::mp("pmic_out"), self(), pmt::mp("pmic_out"));
+        msg_connect(self(), pmt::mp("timestamped_pose_in"), device_, pmt::mp("timestamped_pose_in"));
      }
 
     source_impl::~source_impl()

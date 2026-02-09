@@ -134,6 +134,8 @@ private:
   int16_t *_16icbuf;              /**< raw samples from bladeRF */
   gr_complex *_32fcbuf;           /**< intermediate buffer to gnuradio */
 
+  volatile double most_recent_timestamp;
+
   bool _running;                  /**< is the source running? */
   bladerf_channel_layout _layout; /**< channel layout */
   bladerf_gain_mode _agcmode;     /**< gain mode when AGC is enabled */

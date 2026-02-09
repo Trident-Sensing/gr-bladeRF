@@ -212,6 +212,10 @@ inputs:
   id: pmic_in
   optional: true
   hide: ${'$'}{show_pmic == 'False'}
+
+- domain: message
+  id: timestamped_pose_in
+  optional: true
   
 % if sourk == 'source':
 outputs:

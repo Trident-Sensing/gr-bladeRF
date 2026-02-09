@@ -29,6 +29,7 @@
 #endif
 
 #include <iostream>
+#include <iomanip>
 #include <vector>
 
 #include <boost/assign.hpp>
@@ -71,8 +72,17 @@ bladerf_source_c::bladerf_source_c(const std::string &args) : common_block("blad
                                                               _16icbuf(NULL),
                                                               _32fcbuf(NULL),
                                                               _running(false),
-                                                              _agcmode(BLADERF_GAIN_DEFAULT)
+                                                              _agcmode(BLADERF_GAIN_DEFAULT),
+                                                              most_recent_timestamp(0)
 {
+
+  pmt::pmt_t timestamped_pose_in = pmt::mp("timestamped_pose_in");
+  message_port_register_in(timestamped_pose_in);
+  set_msg_handler(timestamped_pose_in, [this](const pmt::pmt_t &msg)
+  {
+    most_recent_timestamp = pmt::to_double(pmt::cdr(msg));
+    std::cout << std::fixed << std::setprecision(6) << "timestamp updated: " << most_recent_timestamp << std::endl;
+  });
   dict_t dict = params_to_dict(args);
 
   /* Parse actual hardware channel count from args */
@@ -353,7 +363,7 @@ int bladerf_source_c::general_work(int noutput_items,
     BLADERF_WARNING("Overrun detected - advancing state machine without producing samples");
     for (size_t ch = 0; ch < nstreams; ++ch)
     {
-      int samples_to_advance = noutput_items; 
+      int samples_to_advance = noutput_items;
       while (samples_to_advance > 0)
       {
         int remaining_in_current = _samples_per_switch[ch] - _samples_in_current_split[ch];
@@ -397,6 +407,7 @@ int bladerf_source_c::general_work(int noutput_items,
 
   static const pmt::pmt_t SWITCH_KEY = pmt::intern("switch_index");
   static const pmt::pmt_t BLOCK_ID = pmt::intern("bladerf_source");
+  static const pmt::pmt_t TIMESTAMP_KEY = pmt::intern("timestamp");
 
   if (nstreams > 1)
   {
@@ -408,10 +419,13 @@ int bladerf_source_c::general_work(int noutput_items,
     // Tag the first sample of each channel with the current switch index
     for (size_t ch = 0; ch < nstreams; ++ch)
     {
+      add_item_tag(ch, nitems_written(ch), TIMESTAMP_KEY,
+                   pmt::from_double(most_recent_timestamp), BLOCK_ID);
       if (_split_count[ch] > 1)
       {
         add_item_tag(ch, nitems_written(ch), SWITCH_KEY,
                      pmt::from_long(_current_split[ch]), BLOCK_ID);
+
         tags_added[ch]++;
       }
     }
@@ -429,7 +443,6 @@ int bladerf_source_c::general_work(int noutput_items,
           _samples_in_current_split[ch]++;
           if (_samples_in_current_split[ch] >= _samples_per_switch[ch])
           {
-            size_t old_split = _current_split[ch];
             _samples_in_current_split[ch] = 0;
             _current_split[ch] = (_current_split[ch] + 1) % _split_count[ch];
 
@@ -438,6 +451,7 @@ int bladerf_source_c::general_work(int noutput_items,
             {
               add_item_tag(ch, nitems_written(ch) + i + 1, SWITCH_KEY,
                            pmt::from_long(_current_split[ch]), BLOCK_ID);
+              add_item_tag(ch, nitems_written(ch) + i + 1, TIMESTAMP_KEY, pmt::from_double(most_recent_timestamp), BLOCK_ID);
               tags_added[ch]++;
             }
           }
@@ -455,6 +469,10 @@ int bladerf_source_c::general_work(int noutput_items,
   {
     // Single hardware channel - output all samples and tag at switch boundaries
     size_t tags_added = 0;
+
+    // Always tag the first sample with the most recent timestamp
+    add_item_tag(0, nitems_written(0), TIMESTAMP_KEY,
+                 pmt::from_double(most_recent_timestamp), BLOCK_ID);
 
     // Tag the first sample with the current switch index (only if switching)
     if (_split_count[0] > 1)
@@ -475,7 +493,6 @@ int bladerf_source_c::general_work(int noutput_items,
         _samples_in_current_split[0]++;
         if (_samples_in_current_split[0] >= _samples_per_switch[0])
         {
-          size_t old_split = _current_split[0];
           _samples_in_current_split[0] = 0;
           _current_split[0] = (_current_split[0] + 1) % _split_count[0];
 
