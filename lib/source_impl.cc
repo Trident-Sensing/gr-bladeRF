@@ -342,6 +342,9 @@ namespace gr {
     unsigned int source_impl::set_channel_1_split_count(unsigned int count)
     {
         channel_1_split_count_ = count;
+        if (device_) {
+            device_->set_split_count(0, count);
+        }
         return channel_1_split_count_;
     }
 
@@ -353,6 +356,9 @@ namespace gr {
     unsigned int source_impl::set_channel_2_split_count(unsigned int count)
     {
         channel_2_split_count_ = count;
+        if (device_) {
+            device_->set_split_count(1, count);
+        }
         return channel_2_split_count_;
     }
 
@@ -364,6 +370,9 @@ namespace gr {
     int source_impl::set_channel_1_samples_per_switch(int samples)
     {
         channel_1_samples_per_switch_ = samples;
+        if (device_) {
+            device_->set_samples_per_switch(0, samples);
+        }
         return channel_1_samples_per_switch_;
     }
 
@@ -375,6 +384,9 @@ namespace gr {
     int source_impl::set_channel_2_samples_per_switch(int samples)
     {
         channel_2_samples_per_switch_ = samples;
+        if (device_) {
+            device_->set_samples_per_switch(1, samples);
+        }
         return channel_2_samples_per_switch_;
     }
 

@@ -248,8 +248,6 @@ bool bladerf_source_c::start()
     }
   }
 
-  _samples_written.resize(output_signature()->max_streams(), 0);
-
   /* Allocate memory for conversions in work() */
   size_t alignment = volk_get_alignment();
 
@@ -308,6 +306,7 @@ int bladerf_source_c::general_work(int noutput_items,
   int status;
   struct bladerf_metadata meta;
   struct bladerf_metadata *meta_ptr = NULL;
+  // nstreams will be the number of hardware channels
   size_t nstreams = num_streams(_layout);
 
   gr::thread::scoped_lock guard(d_mutex);
@@ -392,63 +391,106 @@ int bladerf_source_c::general_work(int noutput_items,
                               SCALING_FACTOR_SC16_Q11, 2 * noutput_items);
   }
 
-  // copy the samples into output_items, handling split counts
+  // copy the samples into output_items, tagging each with its switch index
   gr_complex **out = reinterpret_cast<gr_complex **>(&output_items[0]);
   gr_complex const *deint_in = _32fcbuf;
 
-  // Track how many samples written to each output port
-  std::fill(_samples_written.begin(), _samples_written.end(), 0);
-  // Calculate output port offsets for each hw channel
-  size_t output_offset[2] = {0, 0};
-  output_offset[0] = 0;
-  if (_hw_channels > 1)
-  {
-    output_offset[1] = _split_count[0];
-  }
+  static const pmt::pmt_t SWITCH_KEY = pmt::intern("switch_index");
+  static const pmt::pmt_t BLOCK_ID = pmt::intern("bladerf_source");
 
   if (nstreams > 1)
   {
-    // we need to deinterleave the multiplex and route to split outputs
-    for (size_t i = 0; i < (noutput_items / nstreams); ++i)
+    // Deinterleave multi-channel samples into per-hw-channel outputs
+    // and tag samples at switch boundaries with their switch index
+    size_t samples_per_chan = noutput_items / nstreams;
+    size_t tags_added[2] = {0, 0};
+
+    // Tag the first sample of each channel with the current switch index
+    for (size_t ch = 0; ch < nstreams; ++ch)
+    {
+      if (_split_count[ch] > 1)
+      {
+        add_item_tag(ch, nitems_written(ch), SWITCH_KEY,
+                     pmt::from_long(_current_split[ch]), BLOCK_ID);
+        tags_added[ch]++;
+      }
+    }
+
+    for (size_t i = 0; i < samples_per_chan; ++i)
     {
       for (size_t ch = 0; ch < nstreams; ++ch)
       {
-        // Determine which output port for this hw channel
-        size_t out_port = output_offset[ch] + _current_split[ch];
+        out[ch][i] = *deint_in++;
 
-        // Write sample to the current split's output
-        out[out_port][_samples_written[out_port]++] = *deint_in++;
-
-        // Track samples and switch to next split if needed
-        _samples_in_current_split[ch]++;
-        if (_samples_in_current_split[ch] >= _samples_per_switch[ch])
+        // Only run switch state machine if this channel has multiple splits
+        if (_split_count[ch] > 1)
         {
-          _samples_in_current_split[ch] = 0;
-          _current_split[ch] = (_current_split[ch] + 1) % _split_count[ch];
+          // Advance switch state machine
+          _samples_in_current_split[ch]++;
+          if (_samples_in_current_split[ch] >= _samples_per_switch[ch])
+          {
+            size_t old_split = _current_split[ch];
+            _samples_in_current_split[ch] = 0;
+            _current_split[ch] = (_current_split[ch] + 1) % _split_count[ch];
+
+            // Tag the next sample (if any) with the new switch index
+            if (i + 1 < samples_per_chan)
+            {
+              add_item_tag(ch, nitems_written(ch) + i + 1, SWITCH_KEY,
+                           pmt::from_long(_current_split[ch]), BLOCK_ID);
+              tags_added[ch]++;
+            }
+          }
         }
       }
+    }
+
+    // Produce equal number of samples on each hw channel output
+    for (size_t ch = 0; ch < nstreams; ++ch)
+    {
+      produce(ch, samples_per_chan);
     }
   }
   else
   {
-    // Single hardware channel, route to splits
+    // Single hardware channel - output all samples and tag at switch boundaries
+    size_t tags_added = 0;
+
+    // Tag the first sample with the current switch index (only if switching)
+    if (_split_count[0] > 1)
+    {
+      add_item_tag(0, nitems_written(0), SWITCH_KEY,
+                   pmt::from_long(_current_split[0]), BLOCK_ID);
+      tags_added++;
+    }
+
     for (int i = 0; i < noutput_items; ++i)
     {
-      size_t out_port = _current_split[0];
-      out[out_port][_samples_written[out_port]++] = deint_in[i];
+      out[0][i] = deint_in[i];
 
-      _samples_in_current_split[0]++;
-      if (_samples_in_current_split[0] >= _samples_per_switch[0])
+      // Only run switch state machine if this channel has multiple splits
+      if (_split_count[0] > 1)
       {
-        _samples_in_current_split[0] = 0;
-        _current_split[0] = (_current_split[0] + 1) % _split_count[0];
+        // Advance switch state machine
+        _samples_in_current_split[0]++;
+        if (_samples_in_current_split[0] >= _samples_per_switch[0])
+        {
+          size_t old_split = _current_split[0];
+          _samples_in_current_split[0] = 0;
+          _current_split[0] = (_current_split[0] + 1) % _split_count[0];
+
+          // Tag the next sample (if any) with the new switch index
+          if (i + 1 < noutput_items)
+          {
+            add_item_tag(0, nitems_written(0) + i + 1, SWITCH_KEY,
+                         pmt::from_long(_current_split[0]), BLOCK_ID);
+            tags_added++;
+          }
+        }
       }
     }
-  }
 
-  for (size_t i = 0; i < output_items.size(); ++i)
-  {
-    produce(i, _samples_written[i]);
+    produce(0, noutput_items);
   }
 
   return WORK_CALLED_PRODUCE;

@@ -219,11 +219,7 @@ outputs:
 % endif
 - domain: stream
   dtype: ${'$'}{type.type}
-% if sourk == 'source':
-  multiplicity: ${'$'}{split_count0 + (split_count1 if nchan > 1 else 0)}
-% else:
   multiplicity: ${'$'}{nchan}
-% endif
 % if sourk == 'sink':
 outputs:
 % endif
@@ -240,12 +236,6 @@ templates:
   make: |      
     bladeRF.${sourk}(
         args="numchan=" + str(${'$'}{nchan})
-% if sourk == 'source':
-             + ",split_count0=" + str(${'$'}{split_count0})
-             + ",split_count1=" + str(${'$'}{split_count1})
-             + ",samples_per_switch0=" + str(${'$'}{samples_per_switch0})
-             + ",samples_per_switch1=" + str(${'$'}{samples_per_switch1})
-% endif
              + ",metadata=" + '${'$'}{metadata}'
              + ",bladerf=" +  str(${'$'}{device_id})
              + ",verbosity=" + '${'$'}{verbosity}'
