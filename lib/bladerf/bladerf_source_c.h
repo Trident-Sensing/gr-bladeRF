@@ -24,6 +24,7 @@
 #include "common_block.h"
 #include "bladerf_common.h"
 #include "osmosdr/ranges.h"
+#include <optional>
 
 class bladerf_source_c;
 
@@ -134,7 +135,7 @@ private:
   int16_t *_16icbuf;              /**< raw samples from bladeRF */
   gr_complex *_32fcbuf;           /**< intermediate buffer to gnuradio */
 
-  volatile double most_recent_timestamp;
+  std::atomic<std::optional<double>> most_recent_timestamp;
 
   bool _running;                  /**< is the source running? */
   bladerf_channel_layout _layout; /**< channel layout */

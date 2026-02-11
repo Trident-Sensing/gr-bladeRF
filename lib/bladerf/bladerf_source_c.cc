@@ -72,17 +72,15 @@ bladerf_source_c::bladerf_source_c(const std::string &args) : common_block("blad
                                                               _16icbuf(NULL),
                                                               _32fcbuf(NULL),
                                                               _running(false),
-                                                              _agcmode(BLADERF_GAIN_DEFAULT),
-                                                              most_recent_timestamp(0)
+                                                              _agcmode(BLADERF_GAIN_DEFAULT)
 {
 
   pmt::pmt_t timestamped_pose_in = pmt::mp("timestamped_pose_in");
   message_port_register_in(timestamped_pose_in);
   set_msg_handler(timestamped_pose_in, [this](const pmt::pmt_t &msg)
-  {
-    most_recent_timestamp = pmt::to_double(pmt::cdr(msg));
-    std::cout << std::fixed << std::setprecision(6) << "timestamp updated: " << most_recent_timestamp << std::endl;
-  });
+                  {
+      most_recent_timestamp.store(pmt::to_double(pmt::cdr(msg)));
+      std::cout << std::fixed << std::setprecision(6) << "timestamp updated: " << most_recent_timestamp.load().value() << std::endl; });
   dict_t dict = params_to_dict(args);
 
   /* Parse actual hardware channel count from args */
@@ -419,8 +417,11 @@ int bladerf_source_c::general_work(int noutput_items,
     // Tag the first sample of each channel with the current switch index
     for (size_t ch = 0; ch < nstreams; ++ch)
     {
-      add_item_tag(ch, nitems_written(ch), TIMESTAMP_KEY,
-                   pmt::from_double(most_recent_timestamp), BLOCK_ID);
+      if (most_recent_timestamp.load().has_value())
+      {
+        add_item_tag(ch, nitems_written(ch), TIMESTAMP_KEY,
+                     pmt::from_double(most_recent_timestamp.load().value()), BLOCK_ID);
+      }
       if (_split_count[ch] > 1)
       {
         add_item_tag(ch, nitems_written(ch), SWITCH_KEY,
@@ -451,7 +452,11 @@ int bladerf_source_c::general_work(int noutput_items,
             {
               add_item_tag(ch, nitems_written(ch) + i + 1, SWITCH_KEY,
                            pmt::from_long(_current_split[ch]), BLOCK_ID);
-              add_item_tag(ch, nitems_written(ch) + i + 1, TIMESTAMP_KEY, pmt::from_double(most_recent_timestamp), BLOCK_ID);
+
+              if (most_recent_timestamp.load().has_value())
+              {
+                add_item_tag(ch, nitems_written(ch) + i + 1, TIMESTAMP_KEY, pmt::from_double(most_recent_timestamp.load().value()), BLOCK_ID);
+              }
               tags_added[ch]++;
             }
           }
@@ -471,8 +476,11 @@ int bladerf_source_c::general_work(int noutput_items,
     size_t tags_added = 0;
 
     // Always tag the first sample with the most recent timestamp
-    add_item_tag(0, nitems_written(0), TIMESTAMP_KEY,
-                 pmt::from_double(most_recent_timestamp), BLOCK_ID);
+    if (most_recent_timestamp.load().has_value())
+    {
+      add_item_tag(0, nitems_written(0), TIMESTAMP_KEY,
+                   pmt::from_double(most_recent_timestamp.load().value()), BLOCK_ID);
+    }
 
     // Tag the first sample with the current switch index (only if switching)
     if (_split_count[0] > 1)

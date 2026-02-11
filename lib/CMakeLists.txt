@@ -118,6 +118,7 @@ endif(ENABLE_BLADERF)
 ########################################################################
 set_target_properties(gnuradio-bladeRF PROPERTIES SOURCES "${gr_bladerf_srcs}")
 target_link_libraries(gnuradio-bladeRF ${gr_bladerf_libs})
+target_link_libraries(gnuradio-bladeRF atomic)
 
 
 ########################################################################
