@@ -13,3 +13,4 @@ float32[]  reference_samples       # interleaved IQ: [i0, q0, i1, q1, ...]
 uint32     antenna_index           # which switched antenna this block is from (0-indexed)
 uint32     sample_rate
 uint32     center_frequency
+uint32     indx                    # starts at 0 and increments for each published block, used to detect dropped blocks

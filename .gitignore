@@ -7,3 +7,5 @@ examples/grc/*.py
 install*/
 log*/
 .vscode
+*.mcap
+*rosbag*

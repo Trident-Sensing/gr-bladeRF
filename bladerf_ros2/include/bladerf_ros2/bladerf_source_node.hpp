@@ -78,6 +78,7 @@ private:
   // ---------- antenna-switch state machine ----------
   int current_antenna_idx_{0};
   int acc_pos_{0};   // next write position (in floats) inside accumulator_
+  int qos_index;
 
   // ---------- streaming thread ----------
   std::thread        stream_thread_;

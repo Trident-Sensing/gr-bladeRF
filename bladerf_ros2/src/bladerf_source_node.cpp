@@ -32,6 +32,9 @@ namespace bladerf_ros2
     num_transfers_      = declare_parameter<int>("num_transfers", 32);
     stream_timeout_ms_  = declare_parameter<int>("stream_timeout_ms", 3000);
 
+    // incremented with each buffer published, used to track dropped samples
+    qos_index = 0;
+
     if (split_count_ < 1)        split_count_ = 1;
     if (samples_per_switch_ < 1) samples_per_switch_ = 1;
 
@@ -279,11 +282,13 @@ namespace bladerf_ros2
           msg->antenna_index     = static_cast<uint32_t>(current_antenna_idx_);
           msg->sample_rate       = static_cast<uint32_t>(sample_rate_);
           msg->center_frequency  = static_cast<uint32_t>(frequency_);
+          msg->indx = this->qos_index;
 
           msg->switched_samples.assign(acc_switched_.begin(), acc_switched_.end());
           msg->reference_samples.assign(acc_ref_.begin(), acc_ref_.end());
 
           pub_->publish(std::move(msg));
+          this->qos_index +=1;
 
           // ------------------------------------------------------------------
           // 5.  Advance switch state machine and reset write cursor.
