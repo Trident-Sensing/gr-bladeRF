@@ -311,6 +311,7 @@ int bladerf_source_c::general_work(int noutput_items,
                                    gr_vector_const_void_star &input_items,
                                    gr_vector_void_star &output_items)
 {
+  std::cout << "samples per switch" << _samples_per_switch[1] << std::endl;
   int status;
   struct bladerf_metadata meta;
   struct bladerf_metadata *meta_ptr = NULL;
